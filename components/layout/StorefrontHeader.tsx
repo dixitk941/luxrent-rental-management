@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Logo from '@/components/ui/Logo';
 
 const navLinks = [
   { label: 'Browse', href: '/browse' },
@@ -27,66 +28,128 @@ export default function StorefrontHeader() {
   const pathname = usePathname();
   const [cartCount] = useState(2);
   const [searchValue, setSearchValue] = useState('');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   return (
-    <header style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: '#fff', borderBottom: '1px solid rgba(100,116,139,0.15)', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '0 24px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '24px' }}>
+    <header
+      className={`sticky top-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? 'bg-white/80 backdrop-blur-xl border-b border-slate/15 shadow-[0_4px_20px_rgba(15,23,42,0.06)]'
+          : 'bg-white/95 backdrop-blur-md border-b border-transparent'
+      }`}
+    >
+      <div className="max-w-[1440px] mx-auto px-6 h-[68px] flex items-center justify-between gap-4">
         {/* Brand + Search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexShrink: 0 }}>
-          <Link href="/home" style={{ color: '#0F172A', fontWeight: 700, fontSize: '20px', textDecoration: 'none', letterSpacing: '-0.01em' }}>
-            LuxRent
+        <div className="flex items-center gap-6 min-w-0">
+          <Link href="/home" className="shrink-0 transition-transform hover:scale-[1.03] active:scale-95">
+            <Logo size={34} />
           </Link>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <span style={{ ...iconSym, position: 'absolute', left: '10px', color: 'rgba(100,116,139,0.5)', fontSize: '18px' }}>search</span>
+          <div className="relative hidden md:flex items-center group">
+            <span className="material-symbols-outlined absolute left-3 text-slate/50 group-focus-within:text-amber transition-colors" style={{ fontSize: '18px' }}>search</span>
             <input
               type="text"
               placeholder="Search properties or equipment..."
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
-              style={{ paddingLeft: '34px', paddingRight: '14px', paddingTop: '8px', paddingBottom: '8px', fontSize: '13px', border: '1px solid rgba(100,116,139,0.2)', borderRadius: '6px', backgroundColor: '#F5F3EF', outline: 'none', width: '260px', fontFamily: 'inherit' }}
+              className="pl-10 pr-3.5 py-2.5 text-[13px] border border-slate/20 rounded-full bg-ivory/70 outline-none w-52 lg:w-72 focus:w-56 lg:focus:w-80 focus:border-amber focus:bg-white focus:shadow-[0_0_0_3px_rgba(217,119,6,0.12)] transition-all duration-300"
             />
           </div>
         </div>
 
-        {/* Nav links */}
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              style={{
-                padding: '6px 14px', borderRadius: '6px', fontSize: '14px', textDecoration: 'none',
-                color: pathname === link.href ? '#0F172A' : '#64748B',
-                backgroundColor: pathname === link.href ? 'rgba(15,23,42,0.06)' : 'transparent',
-                fontWeight: pathname === link.href ? 600 : 500,
-                transition: 'all 0.15s',
-              }}
-            >
-              {link.label}
-            </Link>
-          ))}
+        {/* Desktop nav */}
+        <nav className="hidden lg:flex items-center gap-1">
+          {navLinks.map((link) => {
+            const active = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`relative px-3.5 py-2 rounded-full text-sm transition-colors ${
+                  active ? 'text-navy font-semibold' : 'text-slate font-medium hover:text-navy'
+                }`}
+              >
+                {link.label}
+                <span
+                  className={`absolute left-3.5 right-3.5 -bottom-0.5 h-0.5 rounded-full bg-amber origin-left transition-transform duration-300 ${
+                    active ? 'scale-x-100' : 'scale-x-0'
+                  }`}
+                />
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Link href="/cart" style={{ position: 'relative', padding: '8px', borderRadius: '6px', color: '#64748B', textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+        <div className="flex items-center gap-1 shrink-0">
+          <Link href="/cart" className="relative p-2.5 rounded-full text-slate hover:text-navy hover:bg-navy/[0.05] flex items-center transition-colors">
             <span style={iconSym}>shopping_cart</span>
             {cartCount > 0 && (
-              <span style={{ position: 'absolute', top: '4px', right: '4px', backgroundColor: '#D97706', color: '#fff', fontSize: '10px', fontWeight: 700, width: '16px', height: '16px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="absolute top-1 right-1 bg-amber text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-white">
                 {cartCount}
               </span>
             )}
           </Link>
-          <button style={{ padding: '8px', borderRadius: '6px', color: '#64748B', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+          <button className="hidden sm:flex p-2.5 rounded-full text-slate hover:text-navy hover:bg-navy/[0.05] items-center transition-colors">
             <span style={iconSym}>notifications</span>
           </button>
-          <Link href="/login" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '4px', textDecoration: 'none' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#131B2E', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700 }}>
+          <span className="hidden sm:block w-px h-6 bg-slate/15 mx-1.5" />
+          <Link
+            href="/login"
+            className="flex items-center gap-2 pl-1 pr-1 sm:pr-3 py-1 rounded-full hover:bg-navy/[0.05] transition-colors"
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-navy-container to-navy flex items-center justify-center text-white text-xs font-bold ring-2 ring-amber/30">
               U
             </div>
+            <span className="hidden sm:block text-navy text-sm font-semibold">Account</span>
           </Link>
+          {/* Mobile menu toggle */}
+          <button
+            onClick={() => setMobileOpen((o) => !o)}
+            className="lg:hidden p-2.5 rounded-full text-slate hover:text-navy hover:bg-navy/[0.05] flex items-center transition-colors"
+            aria-label="Menu"
+          >
+            <span style={iconSym}>{mobileOpen ? 'close' : 'menu'}</span>
+          </button>
         </div>
       </div>
+
+      {/* Mobile dropdown */}
+      {mobileOpen && (
+        <div className="lg:hidden border-t border-slate/10 bg-white px-6 py-3 animate-fade-in">
+          <div className="relative flex items-center mb-3 md:hidden">
+            <span className="material-symbols-outlined absolute left-2.5 text-slate/50" style={{ fontSize: '18px' }}>search</span>
+            <input
+              type="text"
+              placeholder="Search…"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              className="pl-9 pr-3.5 py-2 text-[13px] border border-slate/20 rounded-md bg-ivory outline-none w-full focus:border-amber transition-colors"
+            />
+          </div>
+          <nav className="flex flex-col">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileOpen(false)}
+                className={`px-2 py-2.5 rounded-md text-sm ${
+                  pathname === link.href ? 'text-navy font-semibold' : 'text-slate font-medium'
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
