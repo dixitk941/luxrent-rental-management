@@ -1,23 +1,18 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
-
-const products = [
-  { id: 1, title: 'CAT 320 Excavator', desc: 'Standard heavy-duty excavator suitable for large scale earthmoving and construction projects.', status: 'available', category: 'Heavy Machinery', brand: 'Caterpillar', hourly: 85, daily: 650, weekly: 3200, img: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600&q=80' },
-  { id: 2, title: 'Toyota Forklift 8FGU25', desc: 'Versatile indoor/outdoor warehouse lift with 5,000 lb capacity and pneumatic tires.', status: 'low-stock', category: 'Power Tools', brand: 'Komatsu', hourly: 45, daily: 280, weekly: 1150, img: 'https://images.unsplash.com/photo-1605731009813-8e0a0b2c2f4b?w=600&q=80' },
-  { id: 3, title: 'Industrial Generator 50kW', desc: 'Portable 50kW diesel generator for remote site power needs. Reliable, fuel efficient.', status: 'available', category: 'Heavy Machinery', brand: 'Caterpillar', hourly: 0, daily: 150, weekly: 600, img: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&q=80' },
-  { id: 4, title: 'Concrete Mixer 350L', desc: 'High-capacity drum mixer for ready-mix concrete preparation on commercial sites.', status: 'available', category: 'Scaffolding', brand: 'Komatsu', hourly: 25, daily: 120, weekly: 500, img: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600&q=80' },
-  { id: 5, title: 'Aerial Work Platform', desc: 'Self-propelled scissor lift, 30 ft reach, electric powered for indoor use.', status: 'booked', category: 'Scaffolding', brand: 'Caterpillar', hourly: 60, daily: 400, weekly: 1800, img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80' },
-  { id: 6, title: 'Telehandler JCB 535', desc: 'Versatile 3.5 tonne reach truck with 5.5m lift height, ideal for farm and construction.', status: 'available', category: 'Heavy Machinery', brand: 'Komatsu', hourly: 70, daily: 480, weekly: 2100, img: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600&q=80' },
-];
+import { useState, useEffect } from 'react';
+import type { Product } from '@/lib/types';
 
 const statusMap: Record<string, { label: string; cls: string }> = {
   available: { label: 'AVAILABLE', cls: 'badge-green text-[10px]' },
   'low-stock': { label: 'LOW STOCK', cls: 'badge-amber text-[10px]' },
   booked: { label: 'BOOKED', cls: 'badge-red text-[10px]' },
+  draft: { label: 'DRAFT', cls: 'badge-slate text-[10px]' },
 };
 
 export default function BrowsePage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('recommended');
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
@@ -27,11 +22,23 @@ export default function BrowsePage() {
   const [page, setPage] = useState(1);
   const PER_PAGE = 6;
 
+  useEffect(() => {
+    setLoading(true);
+    fetch('/api/products')
+      .then((r) => r.json())
+      .then((data: Product[]) => setProducts(data))
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const categories = Array.from(new Set(products.map((p) => p.category)));
+  const brands = Array.from(new Set(products.map((p) => p.brand)));
+
   const toggleCat = (cat: string) => setSelectedCats((prev) => prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]);
   const toggleBrand = (brand: string) => setSelectedBrands((prev) => prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]);
 
   const filtered = products.filter((p) => {
-    const matchSearch = p.title.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
     const matchCat = selectedCats.length === 0 || selectedCats.includes(p.category);
     const matchBrand = selectedBrands.length === 0 || selectedBrands.includes(p.brand);
     const matchMin = !minPrice || p.daily >= parseInt(minPrice);
@@ -65,7 +72,7 @@ export default function BrowsePage() {
           <div className="mb-5">
             <h4 className="text-xs font-semibold text-slate uppercase tracking-wide mb-3">Category</h4>
             <div className="space-y-2">
-              {['Heavy Machinery', 'Power Tools', 'Scaffolding'].map((cat) => (
+              {categories.map((cat) => (
                 <label key={cat} className="flex items-center gap-2.5 cursor-pointer group">
                   <input
                     type="checkbox"
@@ -93,7 +100,7 @@ export default function BrowsePage() {
           <div className="mb-5">
             <h4 className="text-xs font-semibold text-slate uppercase tracking-wide mb-3">Brand</h4>
             <div className="space-y-2">
-              {['Caterpillar', 'Komatsu'].map((brand) => (
+              {brands.map((brand) => (
                 <label key={brand} className="flex items-center gap-2.5 cursor-pointer group">
                   <input
                     type="checkbox"
@@ -143,7 +150,20 @@ export default function BrowsePage() {
         </div>
 
         {/* Grid */}
-        {paginated.length === 0 ? (
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="card overflow-hidden">
+                <div className="h-48 bg-surface-high animate-pulse" />
+                <div className="p-5 space-y-3">
+                  <div className="h-4 bg-surface-high rounded animate-pulse w-3/4" />
+                  <div className="h-3 bg-surface-high rounded animate-pulse" />
+                  <div className="h-10 bg-surface-high rounded animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : paginated.length === 0 ? (
           <div className="card p-12 text-center">
             <span className="material-symbols-outlined text-slate/30 text-5xl mb-3">search_off</span>
             <p className="text-slate font-medium">No items match your filters.</p>
@@ -156,12 +176,12 @@ export default function BrowsePage() {
               return (
                 <article key={product.id} className="card card-hover flex flex-col overflow-hidden group">
                   <div className="relative h-48 bg-surface-high overflow-hidden">
-                    <img src={product.img} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     <span className={`absolute top-3 right-3 ${s.cls}`}>{s.label}</span>
                   </div>
                   <div className="p-5 flex-1 flex flex-col">
-                    <h2 className="font-semibold text-navy text-sm mb-1 leading-snug">{product.title}</h2>
-                    <p className="text-slate text-xs leading-relaxed mb-4 line-clamp-2">{product.desc}</p>
+                    <h2 className="font-semibold text-navy text-sm mb-1 leading-snug">{product.name}</h2>
+                    <p className="text-slate text-xs leading-relaxed mb-4 line-clamp-2">{product.description}</p>
                     <div className="mt-auto">
                       <div className="grid grid-cols-3 gap-1 mb-4">
                         {[{ label: 'Hourly', val: product.hourly ? `$${product.hourly}` : '—' }, { label: 'Daily', val: `$${product.daily}` }, { label: 'Weekly', val: `$${product.weekly}` }].map((r) => (

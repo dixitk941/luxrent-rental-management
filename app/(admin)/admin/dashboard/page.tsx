@@ -1,24 +1,27 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import type { DashboardData } from '@/lib/types';
 
-const overdueRentals = [
-  { id: 1, tenant: 'Sarah Jenkins', property: 'Apt 4B, The Grand', amount: 2450, daysLate: 12, status: 'notice', badge: 'badge-amber', badgeLabel: 'Notice Sent' },
-  { id: 2, tenant: 'Michael Chen', property: 'Unit 112, Westside Loft', amount: 3100, daysLate: 45, status: 'eviction', badge: 'badge-red', badgeLabel: 'Eviction Pending' },
-  { id: 3, tenant: 'Elena Rostova', property: 'Suite 900, Office Park', amount: 8500, daysLate: 3, status: 'grace', badge: 'badge-amber', badgeLabel: 'Grace Period' },
-];
-
-const recentActivity = [
-  { icon: 'check_circle', color: 'text-emerald-500', text: 'Payment received from James Park — $2,800', time: '2 min ago' },
-  { icon: 'error', color: 'text-amber', text: 'Overdue notice sent to Sarah Jenkins', time: '15 min ago' },
-  { icon: 'add_circle', color: 'text-navy', text: 'New rental: CAT Excavator booked by Riya Shah', time: '1 hr ago' },
-  { icon: 'assignment_return', color: 'text-slate', text: 'Return processed: MacBook Pro — Michael Chen', time: '3 hr ago' },
-];
+const fmtMoney = (n: number) => {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${n.toLocaleString()}`;
+};
 
 export default function AdminDashboard() {
+  const [data, setData] = useState<DashboardData | null>(null);
   const [baseRent, setBaseRent] = useState('2500.00');
   const [daysLate, setDaysLate] = useState('5');
   const [dailyRate, setDailyRate] = useState('1.5');
+
+  useEffect(() => {
+    fetch('/api/dashboard').then((r) => r.json()).then(setData).catch(() => setData(null));
+  }, []);
+
+  const overdueRentals = data?.overdue ?? [];
+  const recentActivity = data?.activity ?? [];
+  const revenueTrend = data?.revenueTrend ?? [40, 65, 45, 80, 55, 90, 72];
 
   const calculatedFee = (() => {
     const base = parseFloat(baseRent) || 0;
@@ -46,10 +49,10 @@ export default function AdminDashboard() {
             <span className="material-symbols-outlined text-white" style={{fontSize:'40px'}}>real_estate_agent</span>
           </div>
           <p className="text-[10px] font-semibold text-on-navy uppercase tracking-widest mb-2">Active Rentals</p>
-          <p className="text-h1 text-white font-bold font-currency">1,248</p>
+          <p className="text-h1 text-white font-bold font-currency">{data?.kpis.activeRentals ?? '—'}</p>
           <div className="flex items-center gap-1 mt-2 text-emerald-400 text-xs font-medium">
             <span className="material-symbols-outlined" style={{fontSize:'14px'}}>trending_up</span>
-            +12% this month
+            Live from database
           </div>
         </div>
         {/* KPI 2 */}
@@ -58,7 +61,7 @@ export default function AdminDashboard() {
             <span className="material-symbols-outlined text-amber" style={{fontSize:'40px'}}>warning</span>
           </div>
           <p className="text-[10px] font-semibold text-on-navy uppercase tracking-widest mb-2">Overdue</p>
-          <p className="text-h1 text-amber font-bold font-currency">34</p>
+          <p className="text-h1 text-amber font-bold font-currency">{data?.kpis.overdue ?? '—'}</p>
           <div className="flex items-center gap-1 mt-2 text-amber text-xs font-medium">
             <span className="material-symbols-outlined" style={{fontSize:'14px'}}>error</span>
             Requires attention
@@ -70,7 +73,7 @@ export default function AdminDashboard() {
             <span className="material-symbols-outlined text-white" style={{fontSize:'40px'}}>payments</span>
           </div>
           <p className="text-[10px] font-semibold text-on-navy uppercase tracking-widest mb-2">Revenue (MTD)</p>
-          <p className="text-h1 text-white font-bold font-currency">$842.5K</p>
+          <p className="text-h1 text-white font-bold font-currency">{data ? fmtMoney(data.kpis.revenueMtd) : '—'}</p>
           <div className="flex items-center gap-1 mt-2 text-emerald-400 text-xs font-medium">
             <span className="material-symbols-outlined" style={{fontSize:'14px'}}>trending_up</span>
             +4.2% vs last month
@@ -82,7 +85,7 @@ export default function AdminDashboard() {
             <span className="material-symbols-outlined text-navy" style={{fontSize:'40px'}}>account_balance</span>
           </div>
           <p className="text-[10px] font-semibold text-slate uppercase tracking-widest mb-2">Deposits Held</p>
-          <p className="text-h1 text-navy font-bold font-currency">$1.2M</p>
+          <p className="text-h1 text-navy font-bold font-currency">{data ? fmtMoney(data.kpis.depositsHeld) : '—'}</p>
           <div className="flex items-center gap-1 mt-2 text-slate text-xs">
             <span className="material-symbols-outlined" style={{fontSize:'14px'}}>lock</span>
             Secure Escrow
@@ -118,6 +121,9 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
+                  {overdueRentals.length === 0 && (
+                    <tr><td colSpan={5} className="table-cell text-center text-slate py-8">No items require attention. 🎉</td></tr>
+                  )}
                   {overdueRentals.map((rental) => (
                     <tr key={rental.id} className="table-row">
                       <td className="table-cell">
@@ -162,7 +168,7 @@ export default function AdminDashboard() {
           <div className="card rounded-xl p-5 h-52 flex flex-col">
             <h2 className="text-sm font-semibold text-navy mb-3">7-Day Revenue Trend</h2>
             <div className="flex-1 border border-dashed border-slate/20 rounded-lg flex items-end px-4 pb-3 pt-4 gap-1.5 bg-ivory/50">
-              {[40, 65, 45, 80, 55, 90, 72].map((h, i) => (
+              {revenueTrend.map((h, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1">
                   <div className="w-full bg-amber/20 rounded-sm hover:bg-amber/40 transition-colors" style={{ height: `${h}%` }} />
                   <span className="text-[9px] text-slate">{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}</span>

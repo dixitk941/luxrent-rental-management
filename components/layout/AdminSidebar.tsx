@@ -33,21 +33,21 @@ export default function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside style={{ width: '256px', backgroundColor: '#131B2E', position: 'fixed', left: 0, top: 0, height: '100vh', display: 'flex', flexDirection: 'column', padding: '24px 0', zIndex: 40, fontFamily: "'Inter', sans-serif" }}>
+    <aside style={{ width: '256px', background: 'linear-gradient(180deg, #16203A 0%, #0F172A 100%)', position: 'fixed', left: 0, top: 0, height: '100vh', display: 'flex', flexDirection: 'column', padding: '24px 0', zIndex: 40, fontFamily: "'Inter', sans-serif", borderRight: '1px solid rgba(255,255,255,0.06)' }}>
       {/* Header */}
       <div style={{ padding: '0 20px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-          <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(217,119,6,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>
-            A
+          <div style={{ width: '38px', height: '38px', borderRadius: '12px', background: 'linear-gradient(135deg, #F59E0B, #D97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '15px', flexShrink: 0, boxShadow: '0 6px 16px -6px rgba(217,119,6,0.7)' }}>
+            L
           </div>
           <div>
-            <p style={{ color: '#fff', fontWeight: 600, fontSize: '14px' }}>Admin Portal</p>
+            <p style={{ color: '#fff', fontWeight: 700, fontSize: '14px', letterSpacing: '-0.01em' }}>LuxRent Admin</p>
             <p style={{ color: '#7C839B', fontSize: '12px' }}>Management Suite</p>
           </div>
         </div>
         <Link
           href="/admin/products"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', padding: '10px', backgroundColor: '#D97706', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '13px', fontWeight: 600 }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', padding: '11px', background: 'linear-gradient(135deg, #F59E0B, #D97706)', color: '#fff', borderRadius: '12px', textDecoration: 'none', fontSize: '13px', fontWeight: 600, boxShadow: '0 6px 16px -6px rgba(217,119,6,0.6)' }}
         >
           <span style={iconStyle} className="material-symbols-outlined">add</span>
           New Entry
@@ -63,12 +63,13 @@ export default function AdminSidebar() {
               key={item.href}
               href={item.href}
               style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '10px 14px', borderRadius: '6px', textDecoration: 'none',
-                marginBottom: '2px', transition: 'all 0.15s',
-                borderLeft: isActive ? '4px solid #D97706' : '4px solid transparent',
-                backgroundColor: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                display: 'flex', alignItems: 'center', gap: '11px',
+                padding: '11px 14px', borderRadius: '12px', textDecoration: 'none',
+                marginBottom: '4px', transition: 'all 0.15s',
+                border: isActive ? '1px solid rgba(217,119,6,0.35)' : '1px solid transparent',
+                background: isActive ? 'linear-gradient(135deg, rgba(217,119,6,0.18), rgba(217,119,6,0.05))' : 'transparent',
                 color: isActive ? '#ffffff' : 'rgba(124,131,155,0.85)',
+                boxShadow: isActive ? 'inset 3px 0 0 #F59E0B' : 'none',
               }}
             >
               <span className="material-symbols-outlined" style={isActive ? iconStyleFilled : iconStyle}>{item.icon}</span>

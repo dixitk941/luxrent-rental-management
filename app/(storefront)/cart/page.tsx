@@ -1,21 +1,24 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-
-const initialItems = [
-  { id: 1, title: 'Komat 850x Excavator', attachment: 'Standard Bucket', days: 5, rate: 350, deposit: 500, img: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=200&q=80', pickup: 'Oct 15, 2024', returnDate: 'Oct 20, 2024' },
-  { id: 2, title: 'Toyota Forklift 8FGU25', attachment: 'Standard', days: 3, rate: 280, deposit: 300, img: 'https://images.unsplash.com/photo-1605731009813-8e0a0b2c2f4b?w=200&q=80', pickup: 'Oct 18, 2024', returnDate: 'Oct 21, 2024' },
-];
+import { getCart, removeFromCart, type CartItem } from '@/lib/cart';
 
 export default function CartPage() {
   const router = useRouter();
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState<CartItem[]>([]);
   const [promoCode, setPromoCode] = useState('');
   const [promoApplied, setPromoApplied] = useState(false);
   const [promoError, setPromoError] = useState('');
 
-  const removeItem = (id: number) => setItems((prev) => prev.filter((i) => i.id !== id));
+  useEffect(() => {
+    setItems(getCart());
+    const sync = () => setItems(getCart());
+    window.addEventListener('cart:changed', sync);
+    return () => window.removeEventListener('cart:changed', sync);
+  }, []);
+
+  const removeItem = (key: string) => { removeFromCart(key); setItems(getCart()); };
 
   const subtotal = items.reduce((sum, item) => sum + item.rate * item.days, 0);
   const depositTotal = items.reduce((sum, item) => sum + item.deposit, 0);
@@ -55,9 +58,9 @@ export default function CartPage() {
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-4">
             {items.map((item) => (
-              <div key={item.id} className="card p-5 flex gap-4">
+              <div key={item.key} className="card p-5 flex gap-4">
                 <div className="w-24 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-surface-high">
-                  <img src={item.img} alt={item.title} className="w-full h-full object-cover" />
+                  <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start">
@@ -65,7 +68,7 @@ export default function CartPage() {
                       <h3 className="font-semibold text-navy text-sm">{item.title}</h3>
                       <p className="text-slate text-xs mt-0.5">{item.attachment}</p>
                     </div>
-                    <button onClick={() => removeItem(item.id)} className="text-slate hover:text-red-500 transition-colors p-1">
+                    <button onClick={() => removeItem(item.key)} className="text-slate hover:text-red-500 transition-colors p-1">
                       <span className="material-symbols-outlined" style={{fontSize:'18px'}}>close</span>
                     </button>
                   </div>

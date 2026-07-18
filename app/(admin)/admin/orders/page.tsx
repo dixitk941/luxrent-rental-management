@@ -1,12 +1,13 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import type { Order } from '@/lib/types';
 
-const orders = [
-  { id: '#ORD-0942', customer: 'Sarah Jenkins', email: 'sarah.j@example.com', phone: '+1 (555) 019-2834', item: 'Canon EOS R5 Camera Kit', due: 'Today', status: 'pending', badge: 'badge-amber', badgeLabel: 'Pending Return', deposit: 500, late: true },
-  { id: '#ORD-0941', customer: 'Michael Chen', email: 'michael.c@example.com', phone: '+1 (555) 204-8812', item: 'MacBook Pro 16"', due: 'Oct 24, 2024', status: 'active', badge: 'badge-green', badgeLabel: 'Active', deposit: 800, late: false },
-  { id: '#ORD-0940', customer: 'Elena Rostova', email: 'elena.r@example.com', phone: '+1 (555) 981-0034', item: 'CAT 320 Excavator', due: 'Oct 28, 2024', status: 'active', badge: 'badge-green', badgeLabel: 'Active', deposit: 1000, late: false },
-  { id: '#ORD-0939', customer: 'James Park', email: 'james.p@example.com', phone: '+1 (555) 330-7721', item: 'Forklift 8FGU25', due: 'Oct 15, 2024', status: 'returned', badge: 'badge-slate', badgeLabel: 'Returned', deposit: 300, late: false },
-];
+const badgeFor = (o: Order) => {
+  if (o.status === 'active') return { badge: 'badge-green', label: 'Active' };
+  if (o.status === 'pending') return { badge: 'badge-amber', label: 'Pending Return' };
+  if (o.status === 'returned') return { badge: 'badge-slate', label: 'Returned' };
+  return { badge: 'badge-slate', label: o.status };
+};
 
 const checklist = [
   'All accessories included (charger, cables)',
@@ -16,16 +17,28 @@ const checklist = [
 ];
 
 export default function AdminOrdersPage() {
-  const [selectedOrder, setSelectedOrder] = useState<typeof orders[0] | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [view, setView] = useState<'list' | 'kanban'>('list');
   const [checkedItems, setCheckedItems] = useState<boolean[]>(checklist.map(() => false));
   const [lateFee, setLateFee] = useState('50.00');
   const [searchQ, setSearchQ] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [processed, setProcessed] = useState<string[]>([]);
 
-  const openDrawer = (order: typeof orders[0]) => {
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/orders')
+      .then((r) => r.json())
+      .then((data: Order[]) => setOrders(data))
+      .catch(() => setOrders([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openDrawer = (order: Order) => {
     setSelectedOrder(order);
     setDrawerOpen(true);
     setCheckedItems(checklist.map(() => false));
@@ -44,15 +57,20 @@ export default function AdminOrdersPage() {
   const refund = Math.max(0, (selectedOrder?.deposit || 0) - (parseFloat(lateFee) || 0));
 
   const processReturn = async () => {
+    if (!selectedOrder) return;
     setProcessing(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    if (selectedOrder) setProcessed((prev) => [...prev, selectedOrder.id]);
+    await fetch(`/api/orders/${selectedOrder.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'returned', lateFee: parseFloat(lateFee) || 0 }),
+    });
     setProcessing(false);
     closeDrawer();
+    load();
   };
 
   const filtered = orders.filter((o) =>
-    o.customer.toLowerCase().includes(searchQ.toLowerCase()) ||
+    o.customerName.toLowerCase().includes(searchQ.toLowerCase()) ||
     o.item.toLowerCase().includes(searchQ.toLowerCase()) ||
     o.id.toLowerCase().includes(searchQ.toLowerCase())
   );
@@ -100,7 +118,9 @@ export default function AdminOrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((order) => (
+              {filtered.map((order) => {
+                const b = badgeFor(order);
+                return (
                 <tr
                   key={order.id}
                   className="table-row cursor-pointer"
@@ -110,18 +130,15 @@ export default function AdminOrdersPage() {
                   <td className="table-cell">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-full bg-navy-container text-white text-xs flex items-center justify-center font-semibold flex-shrink-0">
-                        {order.customer[0]}
+                        {order.customerName[0]}
                       </div>
-                      <span className="font-medium text-navy text-sm">{order.customer}</span>
+                      <span className="font-medium text-navy text-sm">{order.customerName}</span>
                     </div>
                   </td>
                   <td className="table-cell hidden md:table-cell text-slate">{order.item}</td>
-                  <td className={`table-cell hidden lg:table-cell font-medium ${order.due === 'Today' ? 'text-red-600' : 'text-slate'}`}>{order.due}</td>
+                  <td className={`table-cell hidden lg:table-cell font-medium ${order.dueDate === 'Today' ? 'text-red-600' : 'text-slate'}`}>{order.dueDate}</td>
                   <td className="table-cell">
-                    {processed.includes(order.id)
-                      ? <span className="badge-green">Processed</span>
-                      : <span className={order.badge}>{order.badgeLabel}</span>
-                    }
+                    <span className={b.badge}>{b.label}</span>
                   </td>
                   <td className="table-cell text-right">
                     <button className={`transition-colors ${order.status === 'pending' ? 'text-amber hover:text-navy' : 'text-slate hover:text-navy'}`}>
@@ -129,10 +146,12 @@ export default function AdminOrdersPage() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
-          {filtered.length === 0 && (
+          {loading && <div className="p-12 text-center text-slate text-sm">Loading orders…</div>}
+          {!loading && filtered.length === 0 && (
             <div className="p-12 text-center text-slate text-sm">No orders found.</div>
           )}
         </div>
@@ -144,7 +163,7 @@ export default function AdminOrdersPage() {
           {['active', 'pending', 'returned'].map((status) => {
             const statusLabels: Record<string, string> = { active: 'Active Rentals', pending: 'Pending Return', returned: 'Returned' };
             const statusBadge: Record<string, string> = { active: 'badge-green', pending: 'badge-amber', returned: 'badge-slate' };
-            const col = filtered.filter((o) => processed.includes(o.id) ? false : o.status === status);
+            const col = filtered.filter((o) => o.status === status);
             return (
               <div key={status}>
                 <div className="flex items-center gap-2 mb-3">
@@ -156,12 +175,12 @@ export default function AdminOrdersPage() {
                     <div key={order.id} onClick={() => openDrawer(order)} className="card p-4 cursor-pointer hover:border-amber transition-all card-hover">
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-xs font-currency font-semibold text-slate">{order.id}</span>
-                        {order.due === 'Today' && <span className="badge-red text-[10px]">Due Today</span>}
+                        {order.dueDate === 'Today' && <span className="badge-red text-[10px]">Due Today</span>}
                       </div>
-                      <p className="font-semibold text-navy text-sm">{order.customer}</p>
+                      <p className="font-semibold text-navy text-sm">{order.customerName}</p>
                       <p className="text-slate text-xs mt-0.5 line-clamp-1">{order.item}</p>
                       <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate/10">
-                        <span className="text-xs text-slate">{order.due}</span>
+                        <span className="text-xs text-slate">{order.dueDate}</span>
                         <span className="material-symbols-outlined text-slate" style={{fontSize:'16px'}}>open_in_new</span>
                       </div>
                     </div>
@@ -188,12 +207,9 @@ export default function AdminOrdersPage() {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <h2 className="text-h3 text-navy">Order {selectedOrder.id}</h2>
-                  {processed.includes(selectedOrder.id)
-                    ? <span className="badge-green">Processed</span>
-                    : <span className={selectedOrder.badge}>{selectedOrder.badgeLabel}</span>
-                  }
+                  <span className={badgeFor(selectedOrder).badge}>{badgeFor(selectedOrder).label}</span>
                 </div>
-                <p className="text-slate text-xs">Rental Period: Oct 20 – {selectedOrder.due}</p>
+                <p className="text-slate text-xs">Rental Period: {selectedOrder.pickupDate || '—'} – {selectedOrder.dueDate}</p>
               </div>
               <button onClick={closeDrawer} className="p-1.5 rounded-full hover:bg-surface-high transition-colors text-slate">
                 <span className="material-symbols-outlined" style={{fontSize:'20px'}}>close</span>
@@ -206,10 +222,10 @@ export default function AdminOrdersPage() {
                 <h3 className="text-[10px] font-semibold text-slate uppercase tracking-widest mb-3">Customer Details</h3>
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-navy-container text-white text-base font-bold flex items-center justify-center flex-shrink-0">
-                    {selectedOrder.customer[0]}
+                    {selectedOrder.customerName[0]}
                   </div>
                   <div>
-                    <p className="font-semibold text-navy">{selectedOrder.customer}</p>
+                    <p className="font-semibold text-navy">{selectedOrder.customerName}</p>
                     <p className="text-slate text-xs">{selectedOrder.email} • {selectedOrder.phone}</p>
                   </div>
                 </div>
@@ -289,13 +305,13 @@ export default function AdminOrdersPage() {
               <button onClick={closeDrawer} className="btn-secondary flex-1 py-2.5">Cancel</button>
               <button
                 onClick={processReturn}
-                disabled={processing || processed.includes(selectedOrder.id)}
+                disabled={processing || selectedOrder.status === 'returned'}
                 className="btn-primary flex-1 py-2.5"
               >
                 {processing
                   ? <><span className="material-symbols-outlined animate-spin" style={{fontSize:'18px'}}>refresh</span>Processing...</>
-                  : processed.includes(selectedOrder.id)
-                  ? 'Processed ✓'
+                  : selectedOrder.status === 'returned'
+                  ? 'Returned ✓'
                   : 'Process Return'
                 }
               </button>

@@ -1,13 +1,6 @@
 'use client';
-import { useState } from 'react';
-
-const initialProducts = [
-  { id: 1, name: 'Aeron Executive Chair', brand: 'Herman Miller', sku: 'HM-AER-01', variants: ['Graphite', 'Size B'], rate: 45, status: 'active', img: 'https://images.unsplash.com/photo-1541558869434-2840d308329a?w=100&q=80', category: 'Furniture' },
-  { id: 2, name: 'Jarvis Standing Desk', brand: 'Fully', sku: 'FUL-JAR-48', variants: ['Bamboo', '48x30'], rate: 60, status: 'active', img: 'https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=100&q=80', category: 'Furniture' },
-  { id: 3, name: 'Lounge Sofa Set', brand: 'West Elm', sku: 'WE-LOU-03', variants: ['Navy Velvet'], rate: 120, status: 'draft', img: '', category: 'Furniture' },
-  { id: 4, name: 'Sony A7R V Camera', brand: 'Sony', sku: 'SON-A7R-05', variants: ['Body Only', 'Kit 24-70'], rate: 85, status: 'active', img: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=100&q=80', category: 'Electronics' },
-  { id: 5, name: 'DJI Mavic 3 Drone', brand: 'DJI', sku: 'DJI-MAV-3', variants: ['Standard', 'Fly More'], rate: 95, status: 'active', img: 'https://images.unsplash.com/photo-1507582020474-9a35b7d455d9?w=100&q=80', category: 'Electronics' },
-];
+import { useState, useEffect, useCallback } from 'react';
+import type { Product } from '@/lib/types';
 
 const pricingRules = [
   { name: 'Summer Promo 24', desc: '-15% on Outdoor (Ends Aug 31)', active: true },
@@ -23,15 +16,28 @@ const rentalPeriods = [
 ];
 
 export default function AdminProductsPage() {
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selected, setSelected] = useState<number[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: '', brand: '', sku: '', category: 'Furniture', rate: '', status: 'active' });
+  const [newProduct, setNewProduct] = useState({ name: '', brand: '', sku: '', category: 'Furniture', rate: '', status: 'available' });
   const [page, setPage] = useState(1);
   const PER_PAGE = 5;
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch('/api/products')
+      .then((r) => r.json())
+      .then((data: Product[]) => setProducts(data))
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const filtered = products.filter((p) => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase()) || p.brand.toLowerCase().includes(search.toLowerCase());
@@ -46,19 +52,36 @@ export default function AdminProductsPage() {
   const toggleSelect = (id: number) => setSelected((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]);
   const toggleAll = () => setSelected(selected.length === paginated.length ? [] : paginated.map((p) => p.id));
 
-  const deleteSelected = () => {
-    setProducts((prev) => prev.filter((p) => !selected.includes(p.id)));
+  const deleteSelected = async () => {
+    await Promise.all(selected.map((id) => fetch(`/api/products/${id}`, { method: 'DELETE' })));
     setSelected([]);
+    load();
   };
 
-  const addProduct = (e: React.FormEvent) => {
+  const addProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    setProducts((prev) => [...prev, { ...newProduct, id: Date.now(), variants: [], rate: parseFloat(newProduct.rate) || 0, img: '' }]);
-    setNewProduct({ name: '', brand: '', sku: '', category: 'Furniture', rate: '', status: 'active' });
+    setSaving(true);
+    await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: newProduct.name,
+        brand: newProduct.brand,
+        sku: newProduct.sku,
+        category: newProduct.category,
+        status: newProduct.status,
+        daily: parseFloat(newProduct.rate) || 0,
+        monthly: (parseFloat(newProduct.rate) || 0) * 26,
+      }),
+    });
+    setSaving(false);
+    setNewProduct({ name: '', brand: '', sku: '', category: 'Furniture', rate: '', status: 'available' });
     setShowAddModal(false);
+    load();
   };
 
-  const statusBadge = (s: string) => s === 'active' ? 'badge-green' : s === 'draft' ? 'badge-amber' : 'badge-slate';
+  const statusBadge = (s: string) => s === 'available' ? 'badge-green' : s === 'draft' ? 'badge-amber' : s === 'low-stock' ? 'badge-amber' : s === 'booked' ? 'badge-red' : 'badge-slate';
+  const statusLabel = (s: string) => ({ available: 'Available', draft: 'Draft', 'low-stock': 'Low Stock', booked: 'Booked' } as Record<string, string>)[s] || s;
 
   return (
     <div className="p-6 md:p-8 max-w-[1440px] relative">
@@ -89,12 +112,15 @@ export default function AdminProductsPage() {
         <div className="flex gap-2">
           <select value={category} onChange={(e) => setCategory(e.target.value)} className="input-field text-sm py-2.5 w-auto">
             <option value="all">All Categories</option>
-            <option value="Furniture">Furniture</option>
-            <option value="Electronics">Electronics</option>
+            {Array.from(new Set(products.map((p) => p.category))).map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input-field text-sm py-2.5 w-auto">
             <option value="all">All Status</option>
-            <option value="active">Active</option>
+            <option value="available">Available</option>
+            <option value="low-stock">Low Stock</option>
+            <option value="booked">Booked</option>
             <option value="draft">Draft</option>
           </select>
         </div>
@@ -122,14 +148,16 @@ export default function AdminProductsPage() {
                     <input type="checkbox" checked={selected.length === paginated.length && paginated.length > 0} onChange={toggleAll} className="w-4 h-4 rounded border-slate/30 text-navy focus:ring-amber" />
                   </th>
                   <th className="table-header">Product & Brand</th>
-                  <th className="table-header hidden md:table-cell">Variants</th>
-                  <th className="table-header text-right">Base Rate/Mo</th>
+                  <th className="table-header hidden md:table-cell">Category</th>
+                  <th className="table-header text-right">Daily Rate</th>
                   <th className="table-header text-center">Status</th>
                   <th className="table-header w-8"></th>
                 </tr>
               </thead>
               <tbody>
-                {paginated.length === 0 ? (
+                {loading ? (
+                  <tr><td colSpan={6} className="text-center p-12 text-slate text-sm">Loading inventory…</td></tr>
+                ) : paginated.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="text-center p-12 text-slate text-sm">No products match your filters.</td>
                   </tr>
@@ -141,8 +169,8 @@ export default function AdminProductsPage() {
                     <td className="table-cell">
                       <div className="flex items-center gap-3">
                         <div className="w-11 h-11 rounded-lg bg-surface-high flex-shrink-0 overflow-hidden">
-                          {product.img
-                            ? <img src={product.img} alt={product.name} className="w-full h-full object-cover" />
+                          {product.image
+                            ? <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                             : <span className="material-symbols-outlined text-slate w-full h-full flex items-center justify-center" style={{fontSize:'20px'}}>image_not_supported</span>
                           }
                         </div>
@@ -153,15 +181,10 @@ export default function AdminProductsPage() {
                       </div>
                     </td>
                     <td className="table-cell hidden md:table-cell">
-                      <div className="flex flex-wrap gap-1">
-                        {product.variants.map((v) => (
-                          <span key={v} className="px-2 py-0.5 rounded bg-surface-container text-[11px] text-navy">{v}</span>
-                        ))}
-                        {product.variants.length === 0 && <span className="text-slate text-xs">—</span>}
-                      </div>
+                      <span className="px-2 py-0.5 rounded bg-surface-container text-[11px] text-navy">{product.category}</span>
                     </td>
-                    <td className="table-cell text-right font-currency font-medium text-navy">${product.rate}.00</td>
-                    <td className="table-cell text-center"><span className={statusBadge(product.status)}>{product.status === 'active' ? 'Active' : 'Draft'}</span></td>
+                    <td className="table-cell text-right font-currency font-medium text-navy">${product.daily.toLocaleString()}/day</td>
+                    <td className="table-cell text-center"><span className={statusBadge(product.status)}>{statusLabel(product.status)}</span></td>
                     <td className="table-cell opacity-0 group-hover:opacity-100 transition-opacity">
                       <button className="text-slate hover:text-amber transition-colors">
                         <span className="material-symbols-outlined" style={{fontSize:'18px'}}>more_vert</span>
@@ -263,24 +286,28 @@ export default function AdminProductsPage() {
                   <select value={newProduct.category} onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })} className="input-field text-sm">
                     <option>Furniture</option>
                     <option>Electronics</option>
-                    <option>Decor</option>
+                    <option>Heavy Machinery</option>
+                    <option>Power</option>
+                    <option>Warehouse</option>
+                    <option>Scaffolding</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate uppercase tracking-wide mb-1.5">Base Rate/Mo ($)</label>
+                  <label className="block text-xs font-semibold text-slate uppercase tracking-wide mb-1.5">Daily Rate ($)</label>
                   <input type="number" value={newProduct.rate} onChange={(e) => setNewProduct({ ...newProduct, rate: e.target.value })} className="input-field text-sm" placeholder="0.00" min="0" />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate uppercase tracking-wide mb-1.5">Status</label>
                 <select value={newProduct.status} onChange={(e) => setNewProduct({ ...newProduct, status: e.target.value })} className="input-field text-sm">
-                  <option value="active">Active</option>
+                  <option value="available">Available</option>
+                  <option value="low-stock">Low Stock</option>
                   <option value="draft">Draft</option>
                 </select>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary flex-1 py-2.5">Cancel</button>
-                <button type="submit" className="btn-primary flex-1 py-2.5">Add Product</button>
+                <button type="submit" disabled={saving} className="btn-primary flex-1 py-2.5">{saving ? 'Adding…' : 'Add Product'}</button>
               </div>
             </form>
           </div>

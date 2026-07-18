@@ -1,7 +1,7 @@
 'use client';
-import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getCart, clearCart, type CartItem } from '@/lib/cart';
 
 type Step = 'contact' | 'delivery' | 'payment' | 'confirm';
 
@@ -9,10 +9,18 @@ export default function CheckoutPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('contact');
   const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState<CartItem[]>([]);
 
   const [contact, setContact] = useState({ name: '', email: '', phone: '' });
   const [delivery, setDelivery] = useState({ method: 'pickup', address: '', city: '', notes: '' });
   const [payment, setPayment] = useState({ cardName: '', cardNumber: '', expiry: '', cvv: '' });
+
+  useEffect(() => { setItems(getCart()); }, []);
+
+  const subtotal = items.reduce((s, i) => s + i.rate * i.days, 0);
+  const depositTotal = items.reduce((s, i) => s + i.deposit, 0);
+  const fees = Math.round(subtotal * 0.08);
+  const grandTotal = subtotal + fees + depositTotal;
 
   const steps: Step[] = ['contact', 'delivery', 'payment', 'confirm'];
   const stepLabels: Record<Step, string> = { contact: 'Contact', delivery: 'Delivery', payment: 'Payment', confirm: 'Confirm' };
@@ -30,9 +38,33 @@ export default function CheckoutPage() {
 
   const placeOrder = async () => {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          customerName: contact.name || 'Guest',
+          email: contact.email,
+          phone: contact.phone,
+          deliveryMethod: delivery.method,
+          address: [delivery.address, delivery.city].filter(Boolean).join(', '),
+          notes: delivery.notes,
+          items: items.map((i) => ({
+            productId: i.productId,
+            item: i.title,
+            days: i.days,
+            rate: i.rate,
+            deposit: i.deposit,
+            pickup: i.pickup,
+            returnDate: i.returnDate,
+            total: i.rate * i.days + i.deposit,
+          })),
+        }),
+      });
+      clearCart();
+    } catch { /* ignore — still route to confirmation */ }
     setLoading(false);
-    router.push('/home');
+    router.push('/home?ordered=1');
   };
 
   return (
@@ -214,27 +246,31 @@ export default function CheckoutPage() {
           <div className="card p-6 sticky top-24">
             <h3 className="font-semibold text-navy mb-4 pb-3 border-b border-slate/10">Order Summary</h3>
             <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-3 pb-3 border-b border-slate/10">
-                <div className="w-14 h-12 bg-surface-high rounded-md overflow-hidden flex-shrink-0">
-                  <img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=200&q=80" alt="" className="w-full h-full object-cover" />
+              {items.length === 0 ? (
+                <p className="text-slate text-xs py-2">Your cart is empty.</p>
+              ) : items.map((it) => (
+                <div key={it.key} className="flex items-center gap-3 pb-3 border-b border-slate/10">
+                  <div className="w-14 h-12 bg-surface-high rounded-md overflow-hidden flex-shrink-0">
+                    <img src={it.image} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-navy font-semibold text-xs truncate">{it.title}</p>
+                    <p className="text-slate text-xs">{it.days} days — {it.pickup}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-navy font-semibold text-xs">Komat 850x Excavator</p>
-                  <p className="text-slate text-xs">5 days — Oct 15–20</p>
-                </div>
-              </div>
-              <div className="flex justify-between"><span className="text-slate">Subtotal</span><span className="font-currency text-navy">$1,750</span></div>
-              <div className="flex justify-between"><span className="text-slate">Taxes & Fees</span><span className="font-currency text-navy">$146</span></div>
+              ))}
+              <div className="flex justify-between"><span className="text-slate">Subtotal</span><span className="font-currency text-navy">${subtotal.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-slate">Taxes & Fees</span><span className="font-currency text-navy">${fees.toLocaleString()}</span></div>
               <div className="ledger-card flex justify-between items-center">
                 <div className="flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-navy" style={{fontSize:'16px'}}>security</span>
                   <span className="text-xs font-semibold text-navy">Deposit</span>
                 </div>
-                <span className="font-currency font-semibold text-navy">$500</span>
+                <span className="font-currency font-semibold text-navy">${depositTotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center pt-3 border-t-2 border-navy">
                 <span className="font-semibold text-navy">Total</span>
-                <span className="text-h3 text-navy font-currency">$2,396</span>
+                <span className="text-h3 text-navy font-currency">${grandTotal.toLocaleString()}</span>
               </div>
             </div>
           </div>

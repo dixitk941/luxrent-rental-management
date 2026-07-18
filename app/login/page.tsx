@@ -22,9 +22,21 @@ export default function LoginPage() {
     setError('');
     if (!email || !password) { setError('Please fill in all fields.'); return; }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setLoading(false);
-    router.push(isVendor ? '/admin/dashboard' : '/home');
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Login failed.'); setLoading(false); return; }
+      if (rememberMe) localStorage.setItem('luxrent.user', JSON.stringify(data.user));
+      const dest = isVendor || data.user?.role === 'vendor' ? '/admin/dashboard' : '/home';
+      router.push(dest);
+    } catch {
+      setError('Network error. Please try again.');
+      setLoading(false);
+    }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -32,9 +44,20 @@ export default function LoginPage() {
     setError('');
     if (!signupName || !signupEmail || !signupPassword) { setError('Please fill in all fields.'); return; }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setLoading(false);
-    router.push('/home');
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: signupName, email: signupEmail, password: signupPassword, role: isVendor ? 'vendor' : 'customer' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Signup failed.'); setLoading(false); return; }
+      localStorage.setItem('luxrent.user', JSON.stringify(data.user));
+      router.push(data.user?.role === 'vendor' ? '/admin/dashboard' : '/home');
+    } catch {
+      setError('Network error. Please try again.');
+      setLoading(false);
+    }
   };
 
   return (
